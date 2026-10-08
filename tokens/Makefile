@@ -10,6 +10,8 @@ ifeq ($(PLATFORM),fabricx)
 include ./fabricx_ansible.mk
 else ifeq ($(PLATFORM),xdev)
 include ./fabricx_dev.mk
+else ifeq ($(PLATFORM),drunix)
+include ./drunix.mk
 else
 include ./fabric3.mk
 endif

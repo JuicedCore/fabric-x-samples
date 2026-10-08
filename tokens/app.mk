@@ -7,6 +7,8 @@
 export PLATFORM
 ifeq ($(PLATFORM),fabric3)
 	COMPOSE_ARGS := -f compose.yml -f compose-endorser2.yml
+else ifeq ($(PLATFORM),drunix)
+	COMPOSE_ARGS := -f compose.yml -f compose-endorser2.yml
 endif
 CONTAINER_CLI ?= docker
 
