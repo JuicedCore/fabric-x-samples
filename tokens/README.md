@@ -375,7 +375,7 @@ It is the building block for atomic swaps between parties that do not trust each
 
 Hashes and pre-images are exchanged as standard base64 strings. `deadline` is the number of seconds from now.
 On a node with more than one token management service you can select one with an optional
-`"tmsId": {"network": "default", "channel": "mychannel", "namespace": "token_namespace"}` (the channel is `arma` on Fabric-X).
+`"tmsId": {"network": "default", "channel": "mychannel", "namespace": "token_namespace"}` (the channel is `arma` on Fabric-X and `mychannel` on Fabric v3 and drunix).
 
 `alice` locks `20 TOK` for `dan` for one hour. The node generates the pre-image and returns it with its SHA-256 hash;
 `alice` passes the pre-image to `dan` out of band. `dan` then claims the tokens:
@@ -424,7 +424,11 @@ make teardown && make clean
 
 PLATFORM=fabricx HTLC_TEST=1 make test   # HTLC_TEST=1 also runs the HTLC tests on Fabric-X
 PLATFORM=fabric3 make test               # HTLC tests run by default on Fabric v3
+PLATFORM=drunix HTLC_TEST=1 make test    # drunix (channel mychannel, no init needed)
 ```
+
+When switching between platforms, run `make teardown-all` first so no other platform's containers are
+still attached to the shared `fabric_test` network.
 
 ## Stopping and restarting
 
