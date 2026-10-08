@@ -5,8 +5,6 @@
 
 x-service-template: &service-template
   restart: unless-stopped
-  extra_hosts:
-    - "orderer.example.com:host-gateway"
   networks:
     - test
 
