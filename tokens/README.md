@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 The **Token SDK Sample** demonstrates how to:
 
 - Build a simple token-based application using the [Token SDK](https://github.com/LFDT-Panurus/panurus).
-- Connect the application to both [Fabric-X](https://github.com/hyperledger/fabric-x) and classic [Fabric](https://github.com/hyperledger/fabric) networks.
+- Connect the application to [Fabric-X](https://github.com/hyperledger/fabric-x), classic [Fabric](https://github.com/hyperledger/fabric), and [drunix](https://github.com/npci/drunix) (a Fabric 2.x fork) networks.
 - Issue, transfer, redeem and lock (HTLC) tokens via a REST API.
 
 ## Table of Contents
@@ -29,6 +29,10 @@ The **Token SDK Sample** demonstrates how to:
     - [Setup Fabric-X](#setup-fabric-x)
   - [Option 2: Fabric-X test container](#option-2-fabric-x-test-container)
   - [Option 3: Fabric v3](#option-3-fabric-v3)
+  - [Option 4: drunix](#option-4-drunix)
+    - [Requirements](#requirements-1)
+    - [Installation](#installation-1)
+    - [Setup drunix](#setup-drunix)
   - [Interacting with the Application](#interacting-with-the-application)
   - [Example: Issue tokens](#example-issue-tokens)
   - [Example: Transfer tokens](#example-transfer-tokens)
@@ -67,6 +71,7 @@ This sample helps you get familiar with Token SDK features and serves as a start
 - An offline Certificate Authority (CA).
 - Configuration for a **Fabric-X** test network.
 - Configuration for a **Fabric v3** test network.
+- Configuration for a **drunix** test network.
 
 Below is a high level overview of the components and how data flows in a token transfer transaction.
 The sequence diagram later in this readme provides more details about the token transaction.
@@ -235,6 +240,61 @@ Start the Fabric network, create the namespace (chaincode), and start the applic
 make start
 ```
 
+## Option 4: drunix
+
+[drunix](https://github.com/npci/drunix) is a fork of Fabric 2.x. Its peer/orderer/discovery/delivery gRPC
+services, MSP/TLS conventions, and channel capabilities are all wire-compatible with this sample's "generic"
+FSC driver, so the same application runs against it with no code changes — only a different backing network.
+
+Unlike the other options, drunix isn't vendored into this sample: you need your own checkout of the
+[drunix](https://github.com/npci/drunix) repo (which includes its own `drunix-network` test-network tooling)
+and you build its binaries/images yourself, since they aren't published to a registry.
+
+### Requirements
+
+- Everything required for [Option 3](#option-3-fabric-v3) (Go, Docker).
+- A checkout of `drunix` as a sibling of this `fabric-x-samples` checkout, i.e. at
+  `<fabric-x-samples-parent>/drunix`, with `drunix-network` nested inside it at `drunix/drunix-network`
+  (`git clone` drunix, then clone/copy `drunix-network` into it). Both `drunix.mk`'s `DRUNIX_REPO` and
+  `DRUNIX_NETWORK` defaults assume this layout, relative to this sample's own location; override either
+  with an environment variable if you keep drunix elsewhere:
+
+  ```shell
+  export DRUNIX_REPO=/path/to/drunix          # defaults to ../../drunix relative to this sample
+  export DRUNIX_NETWORK=/path/to/drunix-network  # defaults to $DRUNIX_REPO/drunix-network
+  ```
+
+### Installation
+
+Build drunix's own CLI binaries and Docker images (this also builds the `ccaas_builder` used for
+chaincode-as-a-service):
+
+```shell
+export PLATFORM=drunix
+make install-prerequisites
+```
+
+### Setup drunix
+
+Clean up any previous platform's state, then generate drunix's crypto material:
+
+```shell
+make teardown
+make clean
+export PLATFORM=drunix
+make setup
+```
+
+Start the network, deploy the namespace chaincode (as chaincode-as-a-service, same as Fabric v3 — no need
+to call the Init endpoint), and start the application services:
+
+```shell
+make start
+```
+
+The backing database (YugabyteDB) can take a couple of minutes to become ready on first boot; `make start`
+waits for it automatically before starting the peers.
+
 ## Interacting with the Application
 
 All services run as Docker containers and expose REST APIs.
@@ -245,7 +305,7 @@ They also communicate over P2P websockets as shown below:
 | 8080     |      | API documentation (web)     |
 | 9100     | 9101 | Issuer                      |
 | 9300     | 9301 | Endorser 1                  |
-| 9400     | 9401 | Endorser 2 (Fabric v3 only) |
+| 9400     | 9401 | Endorser 2 (Fabric v3 and drunix only) |
 | 9500     | 9501 | Owner 1 (alice and bob)     |
 | 9600     | 9601 | Owner 2 (carlos and dan)    |
 
@@ -258,7 +318,7 @@ Now let's issue and transfer some tokens!
 We begin with initializing the token namespace (commit the parameters for the network) and issue `TOK` tokens to `alice`.
 
 ```bash
-curl -X POST http://localhost:9300/endorser/init  # Fabric-X only
+curl -X POST http://localhost:9300/endorser/init  # Fabric-X and xdev only; not needed for Fabric v3 or drunix
 
 curl http://localhost:9100/issuer/issue -d '{
     "amount": {"code": "TOK","value": 1000},
@@ -377,7 +437,15 @@ First, add the following to `/etc/hosts`:
 127.0.0.1 host.docker.internal
 ```
 
-The application services discover the peer addresses from the channel configuration after connecting to committer-queryservice (or a trusted peer in Fabric v3).
+For drunix, also add its committing peers (used for delivery/discovery/finality — see
+[Option 4](#option-4-drunix)):
+
+```text
+127.0.0.1 peer1.org1.example.com
+127.0.0.1 peer1.org2.example.com
+```
+
+The application services discover the peer addresses from the channel configuration after connecting to committer-queryservice (or a trusted peer in Fabric v3/drunix).
 
 Next, start the network as before, but instead of `make start`, do:
 
@@ -420,3 +488,15 @@ make setup
 Before running `make start` again.
 
 Otherwise, take a look at the logs. Note that an error down the line could be caused by an issue at startup, often a misconfiguration.
+
+**drunix: "connection refused" / timeouts between containers.** If containers can reach each other by
+container name but not via a `host-gateway`-style route to a published port (symptoms: `dial tcp ...
+connect: connection refused` from one container trying to reach another through the host), check whether
+a host firewall (e.g. `ufw`) is blocking forwarded traffic between Docker's bridge networks. A quick test:
+`docker run --rm --network fabric_test alpine sh -c 'nc -zv <container-name> <port>'` from a disposable
+container — if that succeeds but reaching the same port via the host's gateway IP doesn't, it's the
+firewall. Fix: `sudo sed -i 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw && sudo ufw reload`.
+
+**drunix: `make setup`/`make start` can't find `DRUNIX_REPO`/`DRUNIX_NETWORK`.** See
+[Option 4's Requirements](#requirements-1) — either place your `drunix`/`drunix-network` checkout as a
+sibling of this sample, or export `DRUNIX_REPO`/`DRUNIX_NETWORK` to point at wherever you keep them.
