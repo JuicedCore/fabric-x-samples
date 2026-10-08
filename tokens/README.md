@@ -554,6 +554,11 @@ to every node; re-run `make clean setup` if that folder is missing.
 **`docker compose build` fails with `open .../out/local-deployment/committer-db/data/pgdata: permission denied`.**
 The build context must exclude `out/` (see `.dockerignore`).
 
+**Fabric-X: `rm: cannot remove './out/local-deployment/committer-db/data': Permission denied`.** Left over
+by a teardown that ran while Fabric-X wasn't deployed (Docker recreated the bind-mounted directory as
+root). `make clean` now removes such leftovers through a short-lived container, and `make teardown` skips
+the playbook when nothing is deployed.
+
 **"issuer wallet not found" / other identity errors after switching platforms.** `make teardown`
 only tears down the *current* `PLATFORM`'s network — if a previous platform's stack is still
 running alongside the new one, or `conf*/data` still has a local FSC node database from an earlier
