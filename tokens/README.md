@@ -302,7 +302,8 @@ make start
 ```
 
 The backing database (YugabyteDB) can take a couple of minutes to become ready on first boot; `make start`
-waits for it automatically before starting the peers.
+waits for it automatically before starting the peers. `start`, `stop` and `/endorser/init` behave as on
+Fabric v3 (see [Stopping and restarting](#stopping-and-restarting)).
 
 ## Interacting with the Application
 
