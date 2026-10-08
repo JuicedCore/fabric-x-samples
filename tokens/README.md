@@ -405,6 +405,17 @@ To also delete the crypto (you'll have to run `make setup` again):
 make clean
 ```
 
+`make teardown`/`make clean` only act on the **current** `PLATFORM`. If you've switched between
+options (fabricx/xdev/fabric3/drunix) in the same checkout, a previous platform's network can be
+left running — use:
+
+```shell
+make teardown-all
+```
+
+to tear down every platform's stack regardless of which one is currently up (loops `make teardown`
+once per platform, tolerating a platform that's already down).
+
 Convenient Make targets are provided for shutting down, restarting, and cleaning the environment.
 
 Run:
@@ -488,6 +499,13 @@ make setup
 Before running `make start` again.
 
 Otherwise, take a look at the logs. Note that an error down the line could be caused by an issue at startup, often a misconfiguration.
+
+**"issuer wallet not found" / other identity errors after switching platforms.** `make teardown`
+only tears down the *current* `PLATFORM`'s network — if a previous platform's stack is still
+running alongside the new one, or `conf*/data` still has a local FSC node database from an earlier
+run, identities can go out of sync with freshly-generated crypto. Run `make teardown-all` (tears
+down every platform regardless of which is currently up), then `make clean && make setup` for the
+platform you actually want, before `make start`.
 
 **drunix: "connection refused" / timeouts between containers.** If containers can reach each other by
 container name but not via a `host-gateway`-style route to a published port (symptoms: `dial tcp ...
