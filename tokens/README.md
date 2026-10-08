@@ -475,3 +475,8 @@ to every node; re-run `make clean setup` if that folder is missing.
 **`docker compose build` fails with `open .../out/local-deployment/committer-db/data/pgdata: permission denied`.**
 The build context must exclude `out/` (see `.dockerignore`).
 
+**Fabric-X: `rm: cannot remove './out/local-deployment/committer-db/data': Permission denied`.** Left over
+by a teardown that ran while Fabric-X wasn't deployed (Docker recreated the bind-mounted directory as
+root). `make clean` now removes such leftovers through a short-lived container, and `make teardown` skips
+the playbook when nothing is deployed.
+
