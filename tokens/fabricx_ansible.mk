@@ -47,7 +47,8 @@ setup-fabric:
 # Clean all the artifacts (configs and bins) built on the controller node (e.g. make clean).
 .PHONY: clean-fabric
 clean-fabric:
-	@rm -rf ./out
+	@rm -rf ./out 2>/dev/null || { \
+		$(CONTAINER_CLI) run --rm -v "$(CURDIR)/out:/out" busybox sh -c 'rm -rf /out/* /out/.[!.]*' && rm -rf ./out; }
 	@for d in "$(CONF_ROOT)"/*/ ; do \
 		rm -rf "$$d/keys/fabric" "$$d/data"; \
 	done
@@ -55,6 +56,7 @@ clean-fabric:
 # Start fabric-x on the targeted hosts.
 .PHONY: start-fabric
 start-fabric:
+	@[ -f "$(CONF_ROOT)/namespace/zkatdlognoghv1_pp.json" ] || { echo "Error: $(CONF_ROOT)/namespace/zkatdlognoghv1_pp.json not found. Run 'make setup' first."; exit 1; }
 	@$(CONTAINER_CLI) network inspect fabric_test >/dev/null 2>&1 || $(CONTAINER_CLI) network create fabric_test
 	ansible-playbook "$(PLAYBOOK_PATH)/60-start.yaml" --extra-vars '{"target_hosts": "$(TARGET_HOSTS)"}'
 
@@ -66,7 +68,11 @@ stop-fabric:
 # Teardown the targeted hosts (e.g. make fabric-x teardown).
 .PHONY: teardown-fabric
 teardown-fabric:
-	ansible-playbook "$(PLAYBOOK_PATH)/80-teardown.yaml" --extra-vars '{"target_hosts": "$(TARGET_HOSTS)"}'
+	@if [ -d ./out/local-deployment ]; then \
+		ansible-playbook "$(PLAYBOOK_PATH)/80-teardown.yaml" --extra-vars '{"target_hosts": "$(TARGET_HOSTS)"}'; \
+	else \
+		echo "Fabric-X is not deployed (no ./out/local-deployment), skipping teardown"; \
+	fi
 
 # Restart the targeted hosts (e.g. make fabric-x restart).
 .PHONY: restart-fabric
