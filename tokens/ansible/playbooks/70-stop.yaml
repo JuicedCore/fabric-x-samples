@@ -7,5 +7,8 @@
 - name: Stop Hyperledger Fabric-X Committer
   ansible.builtin.import_playbook: hyperledger.fabricx.committer.stop
 
+- name: Stop Postgres databases
+  ansible.builtin.import_playbook: hyperledger.fabricx.postgres.stop
+
 - name: Stop Hyperledger Fabric-X Orderer
   ansible.builtin.import_playbook: hyperledger.fabricx.orderer.stop

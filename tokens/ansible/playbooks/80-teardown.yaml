@@ -7,6 +7,9 @@
 - name: Teardown Hyperledger Fabric-X Committer
   ansible.builtin.import_playbook: hyperledger.fabricx.committer.teardown
 
+- name: Teardown Postgres databases
+  ansible.builtin.import_playbook: hyperledger.fabricx.postgres.teardown
+
 - name: Teardown Hyperledger Fabric-X Orderers
   ansible.builtin.import_playbook: hyperledger.fabricx.orderer.teardown
 
