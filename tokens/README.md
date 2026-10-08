@@ -36,7 +36,9 @@ The **Token SDK Sample** demonstrates how to:
   - [Interacting with the Application](#interacting-with-the-application)
   - [Example: Issue tokens](#example-issue-tokens)
   - [Example: Transfer tokens](#example-transfer-tokens)
+  - [Example: Redeem tokens](#example-redeem-tokens)
   - [Example: HTLC lock, claim and reclaim](#example-htlc-lock-claim-and-reclaim)
+  - [Automated end-to-end tests](#automated-end-to-end-tests)
   - [Teardown and cleanup](#teardown-and-cleanup)
   - [Development](#development)
   - [Debug mode](#debug-mode)
@@ -198,6 +200,11 @@ make start
 curl -X POST http://localhost:9300/endorser/init
 ```
 
+Right after `make start` the Fabric-X network can still be converging, so the first `init` call may return
+HTTP 500; retry it until it returns `{"message":"ok"}`. `init` deploys the public parameters from
+`conf/namespace/zkatdlognoghv1_pp.json` (the endorser's `publicParameters.path`) to the ledger. Issuing
+before a successful `init` fails with `issuer wallet not found`.
+
 ## Option 2: Fabric-X test container
 
 The quickest way for development: a test version of Fabric-X in a single docker container!
@@ -345,6 +352,19 @@ curl -X GET http://localhost:9600/owner/accounts/dan/transactions | jq
 curl -X GET http://localhost:9500/owner/accounts/alice/transactions | jq
 ```
 
+## Example: Redeem tokens
+
+`alice` redeems (burns) `50 TOK`:
+
+```bash
+curl http://localhost:9500/owner/accounts/alice/redeem -d '{
+    "amount": {"code": "TOK","value": 50},
+    "message": "redeem test"
+}'
+
+curl http://localhost:9500/owner/accounts/alice | jq
+```
+
 ## Example: HTLC lock, claim and reclaim
 
 A hash time-locked contract (HTLC) lets `alice` lock tokens so that `dan` can only take them by revealing a secret
@@ -389,6 +409,19 @@ If you already hold a secret, pass its SHA-256 digest as `hash` in the lock requ
 ```bash
 SECRET=$(openssl rand -base64 24)   # the pre-image
 HASH=$(printf '%s' "$SECRET" | openssl base64 -d -A | openssl dgst -sha256 -binary | openssl base64 -A)
+```
+
+## Automated end-to-end tests
+
+`make test` sets up and starts the network for `PLATFORM`, runs `init` where needed, then issues, checks
+balances, transfers, lists transactions, redeems, and (optionally) runs the HTLC lock/claim/reclaim flow,
+asserting the resulting balances. It tears the network down at the end, so start from a clean state:
+
+```shell
+make teardown && make clean
+
+PLATFORM=fabricx HTLC_TEST=1 make test   # HTLC_TEST=1 also runs the HTLC tests on Fabric-X
+PLATFORM=fabric3 make test               # HTLC tests run by default on Fabric v3
 ```
 
 ## Teardown and cleanup
@@ -499,6 +532,27 @@ make setup
 Before running `make start` again.
 
 Otherwise, take a look at the logs. Note that an error down the line could be caused by an issue at startup, often a misconfiguration.
+
+**Fabric-X: `issuer wallet not found` on `/issuer/issue`.** This message hides a public-parameters
+lookup failure (`docker logs tokens-issuer-1` shows `cannot retrieve public params for
+[default,arma,token_namespace]`). Make sure `POST /endorser/init` returned `{"message":"ok"}` after the
+latest `make start`. To confirm the parameters are on the ledger:
+`docker exec committer-db psql -p 5435 -U sc_user -d sc_db -c "select key, octet_length(value) from ns_token_namespace;"`
+— the `\x00736500` (setup) key must have a non-empty value.
+
+**Fabric-X: `MSP Org1MSP is not defined on channel`.** The genesis block doesn't contain `Org1MSP`. The
+collection's configtx template appends `MSP` to `organization.name`, so the inventory must use
+`name: Org1` (not `Org1MSP`). Check with
+`strings out/local-deployment/committer-sidecar/config/config-block.pb.bin | grep Org1` (expect `Org1MSP`,
+not `Org1MSPMSP`), then `make teardown clean setup start`.
+
+**Fabric-X: `invalid endorsement, expected one signed by [...]`.** `endorser1` (listed under
+`fsc_endorsement.endorsers`) must resolve to the identity the endorser signs with. Each `conf/*/core.yaml`
+maps it under `fabric.default.endpoint.resolvers` to `./keys/fabric/endorser`, which `make setup` copies
+to every node; re-run `make clean setup` if that folder is missing.
+
+**`docker compose build` fails with `open .../out/local-deployment/committer-db/data/pgdata: permission denied`.**
+The build context must exclude `out/` (see `.dockerignore`).
 
 **"issuer wallet not found" / other identity errors after switching platforms.** `make teardown`
 only tears down the *current* `PLATFORM`'s network — if a previous platform's stack is still
